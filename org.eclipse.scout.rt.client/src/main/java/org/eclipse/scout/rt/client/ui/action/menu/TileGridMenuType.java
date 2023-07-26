@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2010-2018 BSI Business Systems Integration AG.
+ * Copyright (c) 2010-2023 BSI Business Systems Integration AG.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * https://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
  *     BSI Business Systems Integration AG - initial API and implementation
@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import org.eclipse.scout.rt.client.ui.action.ActionUtility;
 import org.eclipse.scout.rt.client.ui.action.IAction;
 import org.eclipse.scout.rt.client.ui.action.menu.root.IContextMenu;
 import org.eclipse.scout.rt.client.ui.tile.ITile;
@@ -52,7 +51,7 @@ public enum TileGridMenuType implements IMenuType {
    *          (optional) menus are filtered with this predicate before visibility is updated
    */
   public static void updateMenuVisibilities(IContextMenu contextMenu, Set<IMenuType> acceptedMenuTypes, Predicate<IAction> filter) {
-    final Predicate<IAction> activeFilter = ActionUtility.createMenuFilterMenuTypes(acceptedMenuTypes, false);
+    final Predicate<IMenu> activeFilter = MenuUtility.createMenuFilterMenuTypes(acceptedMenuTypes, false);
     contextMenu.visit(menu -> {
       if (filter != null && !filter.test(menu)) {
         return;

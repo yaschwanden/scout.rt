@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2010-2018 BSI Business Systems Integration AG.
+ * Copyright (c) 2010-2023 BSI Business Systems Integration AG.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * https://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
  *     BSI Business Systems Integration AG - initial API and implementation
@@ -17,9 +17,8 @@ import java.util.function.Predicate;
 import org.eclipse.scout.rt.client.extension.ui.basic.tree.ITreeNodeExtension;
 import org.eclipse.scout.rt.client.extension.ui.desktop.outline.pages.IPageWithNodesExtension;
 import org.eclipse.scout.rt.client.extension.ui.desktop.outline.pages.PageWithNodesChains.PageWithNodesCreateChildPagesChain;
-import org.eclipse.scout.rt.client.ui.action.ActionUtility;
-import org.eclipse.scout.rt.client.ui.action.IAction;
 import org.eclipse.scout.rt.client.ui.action.menu.IMenu;
+import org.eclipse.scout.rt.client.ui.action.menu.MenuUtility;
 import org.eclipse.scout.rt.client.ui.action.menu.TableMenuType;
 import org.eclipse.scout.rt.client.ui.action.menu.TreeMenuType;
 import org.eclipse.scout.rt.client.ui.action.menu.root.IFormFieldContextMenu;
@@ -155,7 +154,7 @@ public abstract class AbstractPageWithNodes extends AbstractPage<ITable> impleme
   protected void updateParentTableRow(ICell cell) {
     IPage<?> parent = getParentPage();
     if (parent instanceof IPageWithNodes) {
-      ITableRow row = ((IPageWithNodes) parent).getTableRowFor(this);
+      ITableRow row = parent.getTableRowFor(this);
       if (row != null) {
         row.getCellForUpdate(0).setText(cell.getText());
       }
@@ -312,8 +311,8 @@ public abstract class AbstractPageWithNodes extends AbstractPage<ITable> impleme
       ITreeNode node = getTreeNodeFor(CollectionUtility.firstElement(selectedRows));
       if (node instanceof IPageWithNodes) {
         IPageWithNodes pageWithNodes = (IPageWithNodes) node;
-        Predicate<IAction> filter = ActionUtility.createMenuFilterMenuTypes(CollectionUtility.hashSet(TreeMenuType.SingleSelection), false);
-        List<IMenu> menus = ActionUtility.getActions(pageWithNodes.getMenus(), filter);
+        Predicate<IMenu> filter = MenuUtility.createMenuFilterMenuTypes(CollectionUtility.hashSet(TreeMenuType.SingleSelection), false);
+        List<IMenu> menus = MenuUtility.getMenus(pageWithNodes.getMenus(), filter);
         for (IMenu m : menus) {
           pageMenus.add(MenuWrapper.wrapMenu(m, TREE_MENU_TYPE_MAPPER, filter));
         }

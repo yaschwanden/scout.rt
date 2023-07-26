@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2010-2021 BSI Business Systems Integration AG.
+ * Copyright (c) 2010-2023 BSI Business Systems Integration AG.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * https://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
  *     BSI Business Systems Integration AG - initial API and implementation
@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Set;
 
 import org.eclipse.scout.rt.client.ui.IWidget;
-import org.eclipse.scout.rt.client.ui.action.ActionUtility;
 import org.eclipse.scout.rt.client.ui.action.menu.IMenu;
+import org.eclipse.scout.rt.client.ui.action.menu.MenuUtility;
 import org.eclipse.scout.rt.client.ui.action.menu.TreeMenuType;
 import org.eclipse.scout.rt.client.ui.action.menu.root.AbstractContextMenu;
 import org.eclipse.scout.rt.client.ui.action.menu.root.ITreeContextMenu;
@@ -106,7 +106,7 @@ public class TreeContextMenu extends AbstractContextMenu<ITree> implements ITree
    * called on selection change (selected tree nodes) or when the tree enabled state changes
    */
   protected void calculateEnabledState() {
-    ActionUtility.updateContextMenuEnabledState(this, this::isSelectionEnabled, TreeMenuType.MultiSelection, TreeMenuType.SingleSelection);
+    MenuUtility.updateContextMenuEnabledState(this, this::isSelectionEnabled, TreeMenuType.MultiSelection, TreeMenuType.SingleSelection);
   }
 
   protected Set<TreeMenuType> getMenuTypesForSelection(Set<? extends ITreeNode> selection) {

@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2018 BSI Business Systems Integration AG.
+ * Copyright (c) 2010-2023 BSI Business Systems Integration AG.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * https://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
  *     BSI Business Systems Integration AG - initial API and implementation
@@ -13,7 +13,6 @@ package org.eclipse.scout.rt.client.ui.desktop.outline;
 import java.util.Collection;
 import java.util.function.Predicate;
 
-import org.eclipse.scout.rt.client.ui.action.IAction;
 import org.eclipse.scout.rt.client.ui.action.menu.IMenu;
 import org.eclipse.scout.rt.client.ui.action.menu.IReadOnlyMenu;
 import org.eclipse.scout.rt.client.ui.desktop.outline.OutlineMenuWrapper.IMenuTypeMapper;
@@ -61,18 +60,18 @@ public class MenuWrapper {
    *          Filter used when wrapping child menus.
    * @return Wrapped menu
    */
-  public static IMenu wrapMenu(IMenu menu, IMenuTypeMapper menuTypeMapper, Predicate<IAction> menuFilter) {
+  public static IMenu wrapMenu(IMenu menu, IMenuTypeMapper menuTypeMapper, Predicate<IMenu> menuFilter) {
     return BEANS.get(MenuWrapper.class).doWrapMenu(menu, menuTypeMapper, menuFilter);
   }
 
-  protected IReadOnlyMenu doWrapMenuIfNotWrapped(IMenu menu, IMenuTypeMapper menuTypeMapper, Predicate<IAction> menuFilter) {
+  protected IReadOnlyMenu doWrapMenuIfNotWrapped(IMenu menu, IMenuTypeMapper menuTypeMapper, Predicate<IMenu> menuFilter) {
     if (menu instanceof IReadOnlyMenu) {
       return (IReadOnlyMenu) menu; // already wrapped - don't wrap again
     }
     return doWrapMenu(menu, menuTypeMapper, menuFilter);
   }
 
-  protected IReadOnlyMenu doWrapMenu(IMenu menu, IMenuTypeMapper menuTypeMapper, Predicate<IAction> menuFilter) {
+  protected IReadOnlyMenu doWrapMenu(IMenu menu, IMenuTypeMapper menuTypeMapper, Predicate<IMenu> menuFilter) {
     if (menu instanceof IFormMenu<?>) {
       return new OutlineFormMenuWrapper((IFormMenu<?>) menu, menuTypeMapper, menuFilter);
     }
@@ -96,7 +95,7 @@ public class MenuWrapper {
   public static boolean containsWrappedMenu(Collection<IMenu> menus, IMenu menu) {
     if (menu instanceof IReadOnlyMenu) {
       IReadOnlyMenu wrapper = (IReadOnlyMenu) menu;
-      return menus.contains(wrapper.getWrappedMenu());
+      return menus.contains(wrapper.getWrappedMenu()) || containsWrappedMenu(menus, wrapper.getWrappedMenu());
     }
     return false;
   }

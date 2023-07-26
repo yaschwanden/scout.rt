@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2010-2020 BSI Business Systems Integration AG.
+ * Copyright (c) 2010-2023 BSI Business Systems Integration AG.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * https://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
  *     BSI Business Systems Integration AG - initial API and implementation
@@ -19,11 +19,10 @@ import java.util.function.Predicate;
 
 import org.eclipse.scout.rt.client.extension.ui.action.menu.root.IContextMenuExtension;
 import org.eclipse.scout.rt.client.ui.IWidget;
-import org.eclipse.scout.rt.client.ui.action.ActionUtility;
-import org.eclipse.scout.rt.client.ui.action.IAction;
 import org.eclipse.scout.rt.client.ui.action.menu.AbstractMenu;
 import org.eclipse.scout.rt.client.ui.action.menu.IMenu;
 import org.eclipse.scout.rt.client.ui.action.menu.IMenuType;
+import org.eclipse.scout.rt.client.ui.action.menu.MenuUtility;
 import org.eclipse.scout.rt.platform.classid.ClassId;
 import org.eclipse.scout.rt.platform.holders.BooleanHolder;
 import org.eclipse.scout.rt.platform.util.event.FastListenerList;
@@ -130,7 +129,7 @@ public abstract class AbstractContextMenu<T extends IWidget> extends AbstractMen
   }
 
   protected void calculateLocalVisibility() {
-    final Predicate<IAction> activeFilter = ActionUtility.createMenuFilterMenuTypes(getCurrentMenuTypes(), true);
+    final Predicate<IMenu> activeFilter = MenuUtility.createMenuFilterMenuTypes(getCurrentMenuTypes(), true);
     if (activeFilter != null) {
       final BooleanHolder visibleHolder = new BooleanHolder(false);
       visit(menu -> {

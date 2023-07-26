@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2010-2021 BSI Business Systems Integration AG.
+ * Copyright (c) 2010-2023 BSI Business Systems Integration AG.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * https://www.eclipse.org/legal/epl-v10.html
  *
  * Contributors:
  *     BSI Business Systems Integration AG - initial API and implementation
@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Set;
 
 import org.eclipse.scout.rt.client.ui.IWidget;
-import org.eclipse.scout.rt.client.ui.action.ActionUtility;
 import org.eclipse.scout.rt.client.ui.action.menu.IMenu;
+import org.eclipse.scout.rt.client.ui.action.menu.MenuUtility;
 import org.eclipse.scout.rt.client.ui.action.menu.TableMenuType;
 import org.eclipse.scout.rt.client.ui.action.menu.root.AbstractContextMenu;
 import org.eclipse.scout.rt.client.ui.action.menu.root.ITableContextMenu;
@@ -101,7 +101,7 @@ public class TableContextMenu extends AbstractContextMenu<ITable> implements ITa
    * called on selection change (selected rows) or when the table enabled state changes
    */
   protected void calculateEnabledState() {
-    ActionUtility.updateContextMenuEnabledState(this, this::isSelectionEnabled, TableMenuType.MultiSelection, TableMenuType.SingleSelection);
+    MenuUtility.updateContextMenuEnabledState(this, this::isSelectionEnabled, TableMenuType.MultiSelection, TableMenuType.SingleSelection);
   }
 
   protected Set<TableMenuType> getMenuTypesForSelection(List<? extends ITableRow> selection) {
