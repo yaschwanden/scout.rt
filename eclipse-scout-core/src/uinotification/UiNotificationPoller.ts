@@ -9,24 +9,21 @@
  */
 import {ajax, AjaxCall, AjaxError, App, BackgroundJobPollingStatus, DoEntity, PropertyEventEmitter, scout} from '../index';
 
-let instance: ClientNotificationPoller;
+let instance: UiNotificationPoller;
 
-export class ClientNotificationPoller extends PropertyEventEmitter {
+export class UiNotificationPoller extends PropertyEventEmitter {
   broadcastChannel: BroadcastChannel;
   longPolling: boolean;
   requestTimeout: number;
   shortPollInterval: number;
   status: BackgroundJobPollingStatus;
-  sse: boolean;
   protected _call: AjaxCall;
-  protected _sse: EventSource;
   protected _pollCounter: number; // number of pollers to the same domain in the browser over all tabs
 
   constructor() {
     super();
-    this.sse = true;
     this.requestTimeout = 75000;
-    this.broadcastChannel = new BroadcastChannel('client-notification-poller');
+    this.broadcastChannel = new BroadcastChannel('ui-notification-poller');
     this.broadcastChannel.addEventListener('message', event => this._onBroadcastMessage(event));
     this._pollCounter = 0;
     document.addEventListener('visibilitychange', event => this._onDocumentVisibilityChange(event));
@@ -45,16 +42,11 @@ export class ClientNotificationPoller extends PropertyEventEmitter {
       return;
     }
     this._call?.abort();
-    this._sse?.close();
     this.setStatus(BackgroundJobPollingStatus.STOPPED);
   }
 
   poll() {
-    if (this.sse) {
-      this._pollSse();
-    } else {
-      this._poll();
-    }
+    this._poll();
 
     this.setStatus(BackgroundJobPollingStatus.RUNNING);
   }
@@ -68,28 +60,11 @@ export class ClientNotificationPoller extends PropertyEventEmitter {
       }
     });
     this._call.call()
-      .then((response: ClientNotificationResponse) => this._onSuccess(response))
+      .then((response: UiNotificationResponse) => this._onSuccess(response))
       .catch(error => this._onError(error));
   }
 
-  protected _pollSse() {
-    this._sse = new EventSource('sse?short=' + !this.longPolling, {
-      withCredentials: true
-    });
-    this._sse.addEventListener('message', event => {
-      console.log('UI notification received via SSE: ' + event.data);
-      // setTimeout(() => this.poll(), this.longPolling ? 0 : this.shortPollInterval);
-    });
-    this._sse.addEventListener('error', event => {
-      console.log(this._sse.readyState);
-      if (this._sse.readyState === 0) {
-        this.stop();
-        this.poll();
-      }
-    });
-  }
-
-  protected _onSuccess(response: ClientNotificationResponse) {
+  protected _onSuccess(response: UiNotificationResponse) {
     // TODO CGU CN handle response.error, response.sessionTerminated ?
     console.log('UI notification received: ' + response);
     setTimeout(() => this.poll(), this.longPolling ? 0 : this.shortPollInterval);
@@ -140,20 +115,20 @@ export class ClientNotificationPoller extends PropertyEventEmitter {
     this._updateLongPolling();
   }
 
-  static get(): ClientNotificationPoller {
+  static get(): UiNotificationPoller {
     if (!instance) {
-      instance = scout.create(ClientNotificationPoller);
+      instance = scout.create(UiNotificationPoller);
     }
     return instance;
   }
 }
 
-export interface ClientNotificationResponse {
+export interface UiNotificationResponse {
   notification: DoEntity;
 }
 
 App.addListener('init', () => {
   // Start polling when application is ready
-  ClientNotificationPoller.get().start();
+  UiNotificationPoller.get().start();
   // TODO CGU CN stop on tab / app close or broadcast with a heartbeat instead because tab close is not reliable? (ios)
 });

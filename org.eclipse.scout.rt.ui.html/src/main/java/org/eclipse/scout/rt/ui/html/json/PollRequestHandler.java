@@ -34,7 +34,7 @@ import org.eclipse.scout.rt.ui.html.AbstractUiServletRequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// TODO CGU CN only proxy? Pure Scout JS apps use ClientNotificationResource?
+// TODO CGU CN only proxy? Pure Scout JS apps use UiNotificationResource?
 public class PollRequestHandler extends AbstractUiServletRequestHandler {
   private static final Logger LOG = LoggerFactory.getLogger(PollRequestHandler.class);
 

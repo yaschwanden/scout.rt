@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.eclipse.scout.rt.rest.clientnotification;
+package org.eclipse.scout.rt.rest.uinotification;
 
 import java.util.Collection;
 import java.util.List;
@@ -17,7 +17,7 @@ import javax.annotation.Generated;
 import org.eclipse.scout.rt.dataobject.DoEntity;
 import org.eclipse.scout.rt.dataobject.DoList;
 
-public class ClientNotificationResponse extends DoEntity {
+public class UiNotificationResponse extends DoEntity {
   public DoList<DoEntity> notifications() {
     return doList("notifications");
   }
@@ -27,13 +27,13 @@ public class ClientNotificationResponse extends DoEntity {
    * *************************************************************************/
 
   @Generated("DoConvenienceMethodsGenerator")
-  public ClientNotificationResponse withNotifications(Collection<? extends DoEntity> notifications) {
+  public UiNotificationResponse withNotifications(Collection<? extends DoEntity> notifications) {
     notifications().updateAll(notifications);
     return this;
   }
 
   @Generated("DoConvenienceMethodsGenerator")
-  public ClientNotificationResponse withNotifications(DoEntity... notifications) {
+  public UiNotificationResponse withNotifications(DoEntity... notifications) {
     notifications().updateAll(notifications);
     return this;
   }
