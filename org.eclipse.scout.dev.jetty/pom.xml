@@ -40,6 +40,14 @@
       <artifactId>jetty-plus</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.eclipse.jetty.http2</groupId>
+      <artifactId>http2-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-alpn-server</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.eclipse.scout.rt</groupId>
       <artifactId>org.eclipse.scout.rt.platform</artifactId>
     </dependency>
