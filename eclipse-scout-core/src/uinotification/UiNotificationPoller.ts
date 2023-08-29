@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-import {ajax, AjaxCall, AjaxError, App, BackgroundJobPollingStatus, DoEntity, PropertyEventEmitter, scout} from '../index';
+import {ajax, AjaxCall, AjaxError, App, BackgroundJobPollingStatus, PropertyEventEmitter, scout, UiNotificationDo} from '../index';
 
 let instance: UiNotificationPoller;
 
@@ -17,6 +17,10 @@ export class UiNotificationPoller extends PropertyEventEmitter {
   requestTimeout: number;
   shortPollInterval: number;
   status: BackgroundJobPollingStatus;
+  topics: string[];
+  lastId: number;
+  url: string;
+  dispatcher: (notifications: UiNotificationDo[]) => void;
   protected _call: AjaxCall;
   protected _pollCounter: number; // number of pollers to the same domain in the browser over all tabs
 
@@ -28,6 +32,14 @@ export class UiNotificationPoller extends PropertyEventEmitter {
     this._pollCounter = 0;
     document.addEventListener('visibilitychange', event => this._onDocumentVisibilityChange(event));
     this._updateLongPolling();
+  }
+
+  setTopics(topics: string[]) {
+    this.topics = topics;
+  }
+
+  setDispatcher(dispatcher: (notifications: UiNotificationDo[]) => void) {
+    this.dispatcher = dispatcher;
   }
 
   start() {
@@ -53,11 +65,13 @@ export class UiNotificationPoller extends PropertyEventEmitter {
 
   protected _poll() {
     this._call = ajax.createCallJson({
-      url: 'poll',
+      url: this.url,
       timeout: this.requestTimeout,
-      data: {
-        longPolling: this.longPolling
-      }
+      data: JSON.stringify({
+        longPolling: this.longPolling,
+        topics: this.topics,
+        lastId: this.lastId
+      })
     });
     this._call.call()
       .then((response: UiNotificationResponse) => this._onSuccess(response))
@@ -66,7 +80,12 @@ export class UiNotificationPoller extends PropertyEventEmitter {
 
   protected _onSuccess(response: UiNotificationResponse) {
     // TODO CGU CN handle response.error, response.sessionTerminated ?
-    console.log('UI notification received: ' + response);
+    console.log('UI notification received: ' + JSON.stringify(response));
+    this.lastId = response.notifications.reduce((lastId: number, notification: UiNotificationDo) => Math.max(lastId, notification.id), -1);
+    if (this.dispatcher) {
+      this.dispatcher(response.notifications);
+    }
+
     setTimeout(() => this.poll(), this.longPolling ? 0 : this.shortPollInterval);
   }
 
@@ -81,6 +100,7 @@ export class UiNotificationPoller extends PropertyEventEmitter {
   }
 
   protected _updateLongPolling() {
+    // TODO CGU is this reliable with all browsers (ios) ?
     if (document.visibilityState === 'hidden' && this._pollCounter >= 1) {
       this.setLongPolling(false);
       console.log('Switched to short polling');
@@ -124,11 +144,5 @@ export class UiNotificationPoller extends PropertyEventEmitter {
 }
 
 export interface UiNotificationResponse {
-  notification: DoEntity;
+  notifications: UiNotificationDo[];
 }
-
-App.addListener('init', () => {
-  // Start polling when application is ready
-  UiNotificationPoller.get().start();
-  // TODO CGU CN stop on tab / app close or broadcast with a heartbeat instead because tab close is not reliable? (ios)
-});

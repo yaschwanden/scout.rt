@@ -109,6 +109,8 @@ export * from './util/ViewportScrollerModel';
 export * from './ajax/ajax';
 export * from './ajax/AjaxCall';
 export * from './ajax/AjaxError';
+export * from './uinotification/uiNotifications';
+export * from './uinotification/UiNotificationDo';
 export * from './uinotification/UiNotificationPoller';
 export * from './lookup/LookupCall';
 export * from './lookup/LookupCallModel';
