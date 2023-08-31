@@ -11,13 +11,23 @@ package org.eclipse.scout.rt.uinotification;
 
 import java.security.AccessController;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import javax.security.auth.Subject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.container.Suspended;
+import javax.ws.rs.container.TimeoutHandler;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 
 import org.eclipse.scout.rt.api.data.uinotification.UiNotificationDo;
 import org.eclipse.scout.rt.api.data.uinotification.UiNotificationRequest;
@@ -32,6 +42,8 @@ import org.slf4j.LoggerFactory;
 
 @Path("ui-notifications")
 public class UiNotificationResource implements IRestResource {
+  private static final Logger LOG = LoggerFactory.getLogger(UiNotificationResource.class);
+
   private UiNotificationRegistry m_registry;
 
   public UiNotificationResource() {
@@ -41,15 +53,29 @@ public class UiNotificationResource implements IRestResource {
   @POST
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public UiNotificationResponse get(UiNotificationRequest request) {
-    List<UiNotificationDo> notifications;
-    if (request.isLongPolling()) {
-      notifications = m_registry.poll(request.getTopics(), getUserId(), request.getLastId());
-    }
-    else {
-      notifications = m_registry.getAll(request.getTopics(), getUserId(), request.getLastId());
-    }
-    return new UiNotificationResponse().withNotifications(notifications);
+  public void get(UiNotificationRequest request, @Suspended AsyncResponse asyncResponse) {
+    String userId = getUserId();
+    List<String> topics = request.getTopics();
+    LOG.info("Received request for topics {} and user {}", topics, userId);
+
+    asyncResponse.setTimeout(30, TimeUnit.SECONDS);
+    CompletableFuture<Boolean> future = m_registry.getAllOrWait(topics, userId, request.getLastId(), request.getLongPolling())
+        .thenApply((notifications) -> {
+          LOG.info("Resuming async response with {} notifications for topics {} and user {}", notifications.size(), topics, userId);
+          return asyncResponse.resume((new UiNotificationResponse().withNotifications(notifications)));
+        })
+        .exceptionally(e -> {
+          LOG.error("Error completing future", e);
+          return asyncResponse.resume(Response.status(Status.INTERNAL_SERVER_ERROR).entity(e).build());
+        });
+
+    asyncResponse.setTimeoutHandler(ar -> {
+      LOG.info("Timeout reached.");
+      future.cancel(false);
+      if (!ar.isDone()) {
+        ar.resume(new UiNotificationResponse());
+      }
+    });
   }
 
   protected String getUserId() {

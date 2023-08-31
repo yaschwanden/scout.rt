@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -23,78 +24,37 @@ import org.eclipse.scout.rt.dataobject.DoEntity;
 import org.eclipse.scout.rt.platform.ApplicationScoped;
 import org.eclipse.scout.rt.platform.BEANS;
 import org.eclipse.scout.rt.platform.util.ObjectUtility;
+import org.eclipse.scout.rt.platform.util.event.FastListenerList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @ApplicationScoped
 public class UiNotificationRegistry {
-  //  private Map<SubscriptionId, BlockingQueue<DoEntity>> m_queues = new HashMap<>();
-
   private final AtomicInteger m_sequence = new AtomicInteger(1);
   private final ReadWriteLock m_lock = new ReentrantReadWriteLock();
   private final Map<Topic, List<UiNotificationDo>> m_notifications = new HashMap<>();
-
-  //  private Map<String, FastListenerList> m_topicListeners = new HashMap<>();
-  //  private Map<String, FastListenerList> m_userListeners = new HashMap<>();
-  //  private Map<String, FastListenerList> m_allListeners = new HashMap<>();
+  private final Map<Topic, FastListenerList<UiNotificationListener>> m_listeners = new HashMap<>();
 
   private static final Logger LOG = LoggerFactory.getLogger(UiNotificationRegistry.class);
-  //
-  //  public SubscriptionId subscribe() {
-  //    SubscriptionId id = SubscriptionId.create();
-  //    m_queues.put(id, new LinkedBlockingQueue<>());
-  //    LOG.info("New subscription with id {}. Total subscriptions: {} ", id, m_queues.size());
-  //    return id;
-  //  }
-  //
-  //  public void unsubscribe(SubscriptionId id) {
-  //    m_queues.remove(id);
-  //  }
-  //
-  //  public List<DoEntity> poll(SubscriptionId id, boolean longPolling) {
-  //    // TODO CGU listener registrieren pro topic, user oder alle
-  //    // TODO async testen mit Jersey 3? oder für den Moment mit Thread blockieren mit mutex pro liste?
-  //
-  //    LOG.info("Waiting for new ui notifications for subscription {} ...", id);
-  //    BlockingQueue<DoEntity> queue = m_queues.get(id);
-  //    DoEntity element = null;
-  //    List<DoEntity> notifications = new ArrayList<>();
-  //    if (longPolling) {
-  //      try {
-  //        Integer timeout = 60000;
-  //        element = queue.poll(timeout, TimeUnit.MILLISECONDS);
-  //        // TODO CGU consider session timeout?
-  //      }
-  //      catch (InterruptedException e) {
-  //        throw new RuntimeException(e);
-  //      }
-  //      notifications.add(element);
-  //      queue.drainTo(notifications);
-  //    } else {
-  //      queue.drainTo(notifications);
-  //    }
-  //    //    response.resume(new ClientNotificationResponse().withNotifications(notifications));
-  //    queue.clear();
-  //    LOG.info("Returning new ui notification: {}.", notifications);
-  //    return notifications;
-  //  }
 
-  public List<UiNotificationDo> poll(List<String> topics, String user, Integer lastId) {
+  public CompletableFuture<List<UiNotificationDo>> getAllOrWait(List<String> topics, String user, Integer lastId, boolean wait) {
     List<UiNotificationDo> notifications = getAll(topics, user, lastId);
-    if (!notifications.isEmpty()) {
-      return notifications;
+    if (!notifications.isEmpty() && !wait) {
+      LOG.info("Returning {} notifications for topics {} and user {} without waiting.", notifications.size(), topics, user);
+      return CompletableFuture.completedFuture(notifications);
     }
-
-    synchronized (m_notifications) {
-      try {
-        // TODO CGU replace with async pattern, do not block threads
-        m_notifications.wait(60000);
-      }
-      catch (InterruptedException e) {
-        // Wake up
-      }
-    }
-    return getAll(topics, user, lastId);
+    CompletableFuture<List<UiNotificationDo>> future = new CompletableFuture<>();
+    final UiNotificationListener listener = event -> {
+      LOG.info("New notifications received for topics {} and user {}.", topics, user);
+      future.complete(getAll(topics, user, lastId));
+    };
+    addListeners(topics, user, listener);
+    LOG.info("Waiting for new notifications for topics {} and user {}.", topics, user);
+    return future.thenApply(uiNotificationDos -> {
+      // TODO CGU is this called when future is cancelled?
+      removeListeners(topics, user, listener);
+      return uiNotificationDos;
+    });
   }
 
   public List<UiNotificationDo> getAll(List<String> topics, String user, Integer lastId) {
@@ -108,13 +68,16 @@ public class UiNotificationRegistry {
   public List<UiNotificationDo> get(List<String> topics, String user, Integer lastId) {
     List<UiNotificationDo> notifications = new ArrayList<>();
     for (String topicName : topics) {
-      Topic topic = new Topic();
-      topic.setTopic(topicName);
-      topic.setUser(user);
-      notifications.addAll(get(topic, lastId));
+      notifications.addAll(get(createTopic(topicName, user), lastId));
     }
-    LOG.info("Returning {} notifications for topics {} and user {}.", notifications.size(), topics, user);
     return notifications;
+  }
+
+  protected Topic createTopic(String name, String user) {
+    Topic topic = new Topic();
+    topic.setTopic(name);
+    topic.setUser(user);
+    return topic;
   }
 
   public List<UiNotificationDo> get(Topic topic, Integer lastId) {
@@ -151,18 +114,62 @@ public class UiNotificationRegistry {
     try {
       List<UiNotificationDo> uiNotifications = m_notifications.computeIfAbsent(topic, key -> new ArrayList<>());
       uiNotifications.add(notification);
-
-      // TODO CGU replace with async pattern
-      synchronized (m_notifications) {
-        m_notifications.notifyAll();
-      }
+      LOG.info("Added new ui notification {} for topic {}. New size: {}", notification, topic, uiNotifications.size());
 
       // TODO CGU message needs to be published over cluster, crm and studio use different service -> use studio service only? make abstraction?
-
-      LOG.info("Added new ui notification {} for topic {}. New size: {}", notification, topic, uiNotifications.size());
+      // TODO CGU keep inside lock? It ensures no more notifications can be added during future completion, but it blocks longer. Maybe it would be sufficient to check if response is done in ui notification resource
+      triggerEvent(topic, notification);
     }
     finally {
       m_lock.writeLock().unlock();
+    }
+  }
+
+  public void addListener(Topic topic, UiNotificationListener listener) {
+    FastListenerList<UiNotificationListener> listeners = m_listeners.computeIfAbsent(topic, k -> new FastListenerList<>());
+    listeners.add(listener); // TODO CGU weak true?
+  }
+
+  public void removeListener(Topic topic, UiNotificationListener listener) {
+    FastListenerList<UiNotificationListener> listeners = m_listeners.get(topic);
+    if (listeners == null) {
+      return;
+    }
+    listeners.remove(listener);
+    if (listeners.isEmpty()) {
+      m_listeners.remove(topic);
+    }
+  }
+
+  public void addListeners(List<String> topics, String user, UiNotificationListener listener) {
+    for (String topicName : topics) {
+      addListener(createTopic(topicName, null), listener);
+    }
+    if (user != null) {
+      for (String topicName : topics) {
+        addListener(createTopic(topicName, user), listener);
+      }
+    }
+  }
+
+  public void removeListeners(List<String> topics, String user, UiNotificationListener listener) {
+    for (String topicName : topics) {
+      removeListener(createTopic(topicName, null), listener);
+    }
+    if (user != null) {
+      for (String topicName : topics) {
+        removeListener(createTopic(topicName, user), listener);
+      }
+    }
+  }
+
+  protected void triggerEvent(Topic topic, UiNotificationDo notification) {
+    FastListenerList<UiNotificationListener> listeners = m_listeners.get(topic);
+    if (listeners == null) {
+      return;
+    }
+    for (UiNotificationListener listener : listeners.list()) {
+      listener.notificationAdded(new UiNotificationEvent(this, notification));
     }
   }
 }
