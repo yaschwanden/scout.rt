@@ -23,6 +23,7 @@ import org.eclipse.scout.rt.api.data.uinotification.UiNotificationDo;
 import org.eclipse.scout.rt.dataobject.DoEntity;
 import org.eclipse.scout.rt.platform.ApplicationScoped;
 import org.eclipse.scout.rt.platform.BEANS;
+import org.eclipse.scout.rt.platform.util.Assertions;
 import org.eclipse.scout.rt.platform.util.ObjectUtility;
 import org.eclipse.scout.rt.platform.util.event.FastListenerList;
 import org.slf4j.Logger;
@@ -39,7 +40,7 @@ public class UiNotificationRegistry {
 
   public CompletableFuture<List<UiNotificationDo>> getAllOrWait(List<String> topics, String user, Integer lastId, boolean wait) {
     List<UiNotificationDo> notifications = getAll(topics, user, lastId);
-    if (!notifications.isEmpty() && !wait) {
+    if (!notifications.isEmpty() || !wait) {
       LOG.info("Returning {} notifications for topics {} and user {} without waiting.", notifications.size(), topics, user);
       return CompletableFuture.completedFuture(notifications);
     }
@@ -96,12 +97,13 @@ public class UiNotificationRegistry {
     }
   }
 
-  public void put(DoEntity message) {
-    put(message, null, null);
+  public void put(DoEntity message, String topicName) {
+    put(message, topicName, null);
   }
 
   public void put(DoEntity message, String topicName, String userId) {
-    // TODO CGU allow null topics? or create general topic?
+    Assertions.assertNotNull(message, "Message must not be null");
+    Assertions.assertNotNull(topicName, "Topic must not be null");
     UiNotificationDo notification = BEANS.get(UiNotificationDo.class)
         .withId(m_sequence.getAndIncrement())
         .withTopic(topicName)

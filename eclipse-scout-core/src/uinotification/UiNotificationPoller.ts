@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-import {ajax, AjaxCall, AjaxError, App, BackgroundJobPollingStatus, PropertyEventEmitter, scout, UiNotificationDo} from '../index';
+import {ajax, AjaxCall, AjaxError, BackgroundJobPollingStatus, ErrorHandler, PropertyEventEmitter, scout, UiNotificationDo} from '../index';
 
 let instance: UiNotificationPoller;
 
@@ -25,16 +25,18 @@ export class UiNotificationPoller extends PropertyEventEmitter {
   protected _pollCounter: number; // number of pollers to the same domain in the browser over all tabs
   protected _broadCastChannelHandler: (event: MessageEvent) => void;
   protected _documentVisibilityChangeHandler: (event: Event) => void;
+
   constructor() {
     super();
     this.requestTimeout = 75000;
     this.shortPollInterval = 10000;
     this.broadcastChannel = new BroadcastChannel('ui-notification-poller');
-    this._broadCastChannelHandler = event => this._onBroadcastMessage(event);
-    this._documentVisibilityChangeHandler = event => this._onDocumentVisibilityChange(event);
+    this.status = BackgroundJobPollingStatus.STOPPED;
+    this.lastId = -1;
     this._pollCounter = 0;
     this._updateLongPolling();
-    this.lastId = -1;
+    this._broadCastChannelHandler = event => this._onBroadcastMessage(event);
+    this._documentVisibilityChangeHandler = event => this._onDocumentVisibilityChange(event);
   }
 
   setTopics(topics: string[]) {
@@ -43,6 +45,11 @@ export class UiNotificationPoller extends PropertyEventEmitter {
 
   setDispatcher(dispatcher: (notifications: UiNotificationDo[]) => void) {
     this.dispatcher = dispatcher;
+  }
+
+  restart() {
+    this.stop();
+    this.start();
   }
 
   start() {
@@ -55,7 +62,7 @@ export class UiNotificationPoller extends PropertyEventEmitter {
   }
 
   stop() {
-    if (this.status !== BackgroundJobPollingStatus.RUNNING) {
+    if (this.status === BackgroundJobPollingStatus.STOPPED) {
       return;
     }
     this.broadcastChannel.removeEventListener('message', this._broadCastChannelHandler);
@@ -68,6 +75,10 @@ export class UiNotificationPoller extends PropertyEventEmitter {
     this._poll();
 
     this.setStatus(BackgroundJobPollingStatus.RUNNING);
+  }
+
+  schedulePoll(timeout?: number) {
+    setTimeout(() => this.poll(), scout.nvl(timeout, this.longPolling ? 0 : this.shortPollInterval));
   }
 
   protected _poll() {
@@ -94,13 +105,23 @@ export class UiNotificationPoller extends PropertyEventEmitter {
       this.dispatcher(notifications);
     }
 
-    setTimeout(() => this.poll(), this.longPolling ? 0 : this.shortPollInterval);
+    this.schedulePoll();
   }
 
   protected _onError(error: AjaxError) {
+    if (error.textStatus === 'abort' && this.status === BackgroundJobPollingStatus.STOPPED || this._call.pendingCall) {
+      // When poller is stopped, call is aborted. PendingCall is set if poller has already been restarted.
+      return;
+    }
     this.setStatus(BackgroundJobPollingStatus.FAILURE);
-    console.log(error);
-    // TODO CGU CN Handle offline error, delegate to handler? Resume poller when going online after network loss? How to handle it for Scout JS only case?
+    if (AjaxCall.isOfflineError(error.jqXHR, error.textStatus, error.errorThrown)) {
+      console.log('Connection failed', error);
+    } else {
+      // TODO CGU show message or just log and schedule retry?
+      scout.create(ErrorHandler, {displayError: false}).handle(error);
+    }
+    // TODO CGU Call.ts supports retry but only with intervals, we do not want to limit the number of retries -> add support to Call.ts?
+    this.schedulePoll(5000);
   }
 
   setLongPolling(longPolling: boolean) {

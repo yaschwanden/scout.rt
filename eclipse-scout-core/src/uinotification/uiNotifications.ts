@@ -25,7 +25,12 @@ export const uiNotifications = {
     if (!subscriptions.has(topic)) {
       subscriptions.set(topic, new Set<UiNotificationHandler>());
     }
-    subscriptions.get(topic).add(handler);
+    let handlers = subscriptions.get(topic);
+    if (handlers.has(handler)) {
+      // Already registered
+      return;
+    }
+    handlers.add(handler);
 
     let poller = systemObj.poller;
     if (!poller) {
@@ -36,20 +41,29 @@ export const uiNotifications = {
       systemObj.poller = poller;
     }
     poller.setTopics(Array.from(subscriptions.keys()));
-    poller.start();
+    poller.restart();
   },
 
-  unsubscribe(topic: string, handler: UiNotificationHandler, system?: string) {
+  unsubscribe(topic: string, handler?: UiNotificationHandler, system?: string) {
     scout.assertParameter('topic', topic);
-    scout.assertParameter('handler', handler);
     let systemObj = getOrInitSystem(system);
     let subscriptions = systemObj.subscriptions;
     let handlers = subscriptions.get(topic) || new Set<UiNotificationHandler>();
-    handlers.delete(handler);
+    if (handler) {
+      handlers.delete(handler);
+    } else {
+      handlers.clear();
+    }
     if (handlers.size === 0) {
-      subscriptions.clear();
-      systemObj.poller.stop();
-      systemObj.poller = null;
+      subscriptions.delete(topic);
+    }
+    let poller = systemObj.poller;
+    poller.setTopics(Array.from(subscriptions.keys()));
+    if (poller.topics.length === 0) {
+      poller.stop();
+      poller = null;
+    } else {
+      poller.restart();
     }
   },
 

@@ -50,6 +50,10 @@ public class UiNotificationResource implements IRestResource {
     m_registry = BEANS.get(UiNotificationRegistry.class);
   }
 
+  protected UiNotificationRegistry getRegistry() {
+    return m_registry;
+  }
+
   @POST
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
@@ -59,7 +63,7 @@ public class UiNotificationResource implements IRestResource {
     LOG.info("Received request for topics {} and user {}", topics, userId);
 
     asyncResponse.setTimeout(30, TimeUnit.SECONDS);
-    CompletableFuture<Boolean> future = m_registry.getAllOrWait(topics, userId, request.getLastId(), request.getLongPolling())
+    CompletableFuture<Boolean> future = getRegistry().getAllOrWait(topics, userId, request.getLastId(), request.getLongPolling())
         .thenApply((notifications) -> {
           LOG.info("Resuming async response with {} notifications for topics {} and user {}", notifications.size(), topics, userId);
           return asyncResponse.resume((new UiNotificationResponse().withNotifications(notifications)));
@@ -89,6 +93,6 @@ public class UiNotificationResource implements IRestResource {
   public void putSample() {
     DoEntity doEntity = new DoEntity();
     doEntity.put("sample", "data " + System.currentTimeMillis());
-    m_registry.put(doEntity, "sample", null);
+    getRegistry().put(doEntity, "sample", null);
   }
 }
