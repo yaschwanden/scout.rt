@@ -59,7 +59,7 @@ export const uiNotifications = {
     }
     let poller = systemObj.poller;
     poller.setTopics(Array.from(subscriptions.keys()));
-    if (poller.topics.length === 0) {
+    if (poller.topics.size === 0) {
       poller.stop();
       poller = null;
     } else {
@@ -114,7 +114,7 @@ class System {
         return;
       }
       for (const handler of handlers) {
-        handler(notification.message);
+        handler(notification.message); // TODO CGU Maybe not only message?
       }
     }
   }

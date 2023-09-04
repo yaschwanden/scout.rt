@@ -11,7 +11,7 @@ package org.eclipse.scout.rt.uinotification;
 
 import java.util.Objects;
 
-public class Topic {
+public class NotificationBucket {
   private String m_topic;
   private String m_user;
 
@@ -39,7 +39,7 @@ public class Topic {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Topic topic = (Topic) o;
+    NotificationBucket topic = (NotificationBucket) o;
     return Objects.equals(m_topic, topic.m_topic) && Objects.equals(m_user, topic.m_user);
   }
 

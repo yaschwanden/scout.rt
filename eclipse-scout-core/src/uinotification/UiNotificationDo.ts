@@ -14,4 +14,5 @@ export interface UiNotificationDo extends DoEntity {
   id: number;
   topic: string;
   message: DoEntity;
+  subscriptionStart: boolean;
 }

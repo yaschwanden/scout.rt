@@ -9,23 +9,19 @@
  */
 package org.eclipse.scout.rt.api.data.uinotification;
 
-import java.util.Collection;
-import java.util.List;
-
 import javax.annotation.Generated;
 
 import org.eclipse.scout.rt.dataobject.DoEntity;
-import org.eclipse.scout.rt.dataobject.DoList;
 import org.eclipse.scout.rt.dataobject.DoValue;
 
-public class UiNotificationRequest extends DoEntity {
+public class TopicDo extends DoEntity {
 
-  public DoList<TopicDo> topics() {
-    return doList("topics");
+  public DoValue<String> name() {
+    return doValue("name");
   }
 
-  public DoValue<Boolean> longPolling() {
-    return doValue("longPolling");
+  public DoValue<Integer> lastNotificationId() {
+    return doValue("lastNotificationId");
   }
 
   /* **************************************************************************
@@ -33,35 +29,24 @@ public class UiNotificationRequest extends DoEntity {
    * *************************************************************************/
 
   @Generated("DoConvenienceMethodsGenerator")
-  public UiNotificationRequest withTopics(Collection<? extends TopicDo> topics) {
-    topics().updateAll(topics);
+  public TopicDo withName(String name) {
+    name().set(name);
     return this;
   }
 
   @Generated("DoConvenienceMethodsGenerator")
-  public UiNotificationRequest withTopics(TopicDo... topics) {
-    topics().updateAll(topics);
+  public String getName() {
+    return name().get();
+  }
+
+  @Generated("DoConvenienceMethodsGenerator")
+  public TopicDo withLastNotificationId(Integer lastNotificationId) {
+    lastNotificationId().set(lastNotificationId);
     return this;
   }
 
   @Generated("DoConvenienceMethodsGenerator")
-  public List<TopicDo> getTopics() {
-    return topics().get();
-  }
-
-  @Generated("DoConvenienceMethodsGenerator")
-  public UiNotificationRequest withLongPolling(Boolean longPolling) {
-    longPolling().set(longPolling);
-    return this;
-  }
-
-  @Generated("DoConvenienceMethodsGenerator")
-  public Boolean getLongPolling() {
-    return longPolling().get();
-  }
-
-  @Generated("DoConvenienceMethodsGenerator")
-  public boolean isLongPolling() {
-    return nvl(getLongPolling());
+  public Integer getLastNotificationId() {
+    return lastNotificationId().get();
   }
 }

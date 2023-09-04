@@ -17,8 +17,7 @@ export class UiNotificationPoller extends PropertyEventEmitter {
   requestTimeout: number;
   shortPollInterval: number;
   status: BackgroundJobPollingStatus;
-  topics: string[];
-  lastId: number;
+  topics: Map<string, number>;
   url: string;
   dispatcher: (notifications: UiNotificationDo[]) => void;
   protected _call: AjaxCall;
@@ -32,7 +31,7 @@ export class UiNotificationPoller extends PropertyEventEmitter {
     this.shortPollInterval = 10000;
     this.broadcastChannel = new BroadcastChannel('ui-notification-poller');
     this.status = BackgroundJobPollingStatus.STOPPED;
-    this.lastId = -1;
+    this.topics = new Map();
     this._pollCounter = 0;
     this._updateLongPolling();
     this._broadCastChannelHandler = event => this._onBroadcastMessage(event);
@@ -40,7 +39,8 @@ export class UiNotificationPoller extends PropertyEventEmitter {
   }
 
   setTopics(topics: string[]) {
-    this.topics = topics;
+    // Create a new map but keep existing lastNotificationIds per topic
+    this.topics = new Map<string, number>(topics.map(topic => [topic, this.topics[topic]]));
   }
 
   setDispatcher(dispatcher: (notifications: UiNotificationDo[]) => void) {
@@ -87,8 +87,7 @@ export class UiNotificationPoller extends PropertyEventEmitter {
       timeout: this.requestTimeout,
       data: JSON.stringify({
         longPolling: this.longPolling,
-        topics: this.topics,
-        lastId: this.lastId
+        topics: Array.from(this.topics.entries()).map(([name, lastNotificationId]) => ({name, lastNotificationId}))
       })
     });
     this._call.call()
@@ -99,8 +98,22 @@ export class UiNotificationPoller extends PropertyEventEmitter {
   protected _onSuccess(response: UiNotificationResponse) {
     // TODO CGU CN handle response.error, response.sessionTerminated ?
     console.log('UI notification received: ' + JSON.stringify(response));
-    const notifications = response.notifications || [];
-    this.lastId = notifications.reduce((lastId: number, notification: UiNotificationDo) => Math.max(lastId, notification.id), this.lastId);
+    let notifications = response.notifications || [];
+    notifications = notifications.filter(notification => {
+      let topic = notification.topic;
+      let id = notification.id;
+      if (!this.topics.has(topic)) {
+        // Ignore topics that have been unsubscribed in the meantime
+        return false;
+      }
+      this.topics.set(topic, Math.max(id, scout.nvl(this.topics.get(topic), -1)));
+      if (notification.subscriptionStart) {
+        // Just a marker notification -> discard it
+        return false;
+      }
+      return true;
+    });
+
     if (this.dispatcher) {
       this.dispatcher(notifications);
     }
