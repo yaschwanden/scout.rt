@@ -246,6 +246,7 @@ public class JettyServer {
     httpsConfig.addCustomizer(new SecureRequestCustomizer());
     httpsConfig.setSendServerVersion(false);
     httpsConfig.setSendDateHeader(false);
+//    httpsConfig.setNotifyRemoteAsyncErrors(false);
 
     HttpConnectionFactory http11 = new HttpConnectionFactory(httpsConfig);
     HTTP2ServerConnectionFactory h2 = new HTTP2ServerConnectionFactory(httpsConfig);

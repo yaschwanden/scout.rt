@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.eclipse.scout.rt.uinotification;
+package org.eclipse.scout.rt.api.uinotification;
 
 import java.util.EventObject;
 

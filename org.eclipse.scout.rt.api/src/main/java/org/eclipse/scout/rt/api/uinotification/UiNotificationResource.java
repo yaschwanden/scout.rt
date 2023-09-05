@@ -7,21 +7,20 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.eclipse.scout.rt.uinotification;
+package org.eclipse.scout.rt.api.uinotification;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.Suspended;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
 
 import org.eclipse.scout.rt.api.data.uinotification.TopicDo;
 import org.eclipse.scout.rt.api.data.uinotification.UiNotificationRequest;
@@ -50,29 +49,23 @@ public class UiNotificationResource implements IRestResource {
   @POST
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public void get(UiNotificationRequest request, @Suspended AsyncResponse asyncResponse) {
+  public void get(UiNotificationRequest request, @Suspended AsyncResponse asyncResponse, @Context HttpServletRequest httpReq) {
     String userId = getUserId();
     List<TopicDo> topics = request.getTopics();
     LOG.info("Received request for topics {} and user {}", topics, userId);
 
-    asyncResponse.setTimeout(30, TimeUnit.SECONDS);
-    CompletableFuture<Boolean> future = getRegistry().getAllOrWait(topics, userId, request.isLongPolling())
-        .thenApply((notifications) -> {
-          LOG.info("Resuming async response with {} notifications for topics {} and user {}", notifications.size(), topics, userId);
-          return asyncResponse.resume((new UiNotificationResponse().withNotifications(notifications)));
-        })
-        .exceptionally(e -> {
-          LOG.error("Error completing future", e);
-          return asyncResponse.resume(Response.status(Status.INTERNAL_SERVER_ERROR).entity(e).build());
-        });
+    ClientDisconnectedListener clientDisconnectedListener = new ClientDisconnectedListener();
+    httpReq.getAsyncContext().addListener(clientDisconnectedListener);
 
-    asyncResponse.setTimeoutHandler(ar -> {
-      LOG.info("Timeout reached.");
-      future.cancel(false);
-      if (!ar.isDone()) {
-        ar.resume(new UiNotificationResponse());
-      }
-    });
+    getRegistry().getOrWait(topics, userId, request.isLongPolling() ? TimeUnit.SECONDS.toMillis(5): 0)
+        .thenApply((notifications) -> {
+          if (asyncResponse.isSuspended() && !clientDisconnectedListener.isDisconnected()) {
+            LOG.info("Resuming async response with {} notifications for topics {} and user {}", notifications.size(), topics, userId);
+            return asyncResponse.resume((new UiNotificationResponse().withNotifications(notifications)));
+          }
+          LOG.info("Response is not available anymore, discarding {} notifications for topics {} and user {}", notifications.size(), topics, userId);
+          return false;
+        });
   }
 
   protected String getUserId() {
