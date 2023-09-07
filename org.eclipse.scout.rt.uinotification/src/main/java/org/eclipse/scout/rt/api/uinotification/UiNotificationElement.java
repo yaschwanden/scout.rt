@@ -10,7 +10,6 @@
 package org.eclipse.scout.rt.api.uinotification;
 
 import java.util.Date;
-import java.util.Objects;
 
 import org.eclipse.scout.rt.api.data.uinotification.UiNotificationDo;
 

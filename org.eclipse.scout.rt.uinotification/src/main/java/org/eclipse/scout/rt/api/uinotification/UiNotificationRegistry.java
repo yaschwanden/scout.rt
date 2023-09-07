@@ -52,8 +52,17 @@ public class UiNotificationRegistry {
   private Map<String, FastListenerList<UiNotificationListener>> m_listeners = new HashMap<>();
   private IFuture<Void> m_cleanupJob;
   private long m_cleanupJobInterval = CONFIG.getPropertyValue(RegistryCleanupJobIntervalProperty.class);
+  private IUiNotificationClusterService m_clusterService;
 
   private static final Logger LOG = LoggerFactory.getLogger(UiNotificationRegistry.class);
+
+  public UiNotificationRegistry() {
+    m_clusterService = BEANS.opt(IUiNotificationClusterService.class);
+    if (m_clusterService == null) {
+      // TODO CGU scout js only without scout server dependency will get this warning. Change to info?
+      LOG.warn("No implementation for IUiNotificationClusterService found. UI notifications won't be delivered to other cluster nodes.");
+    }
+  }
 
   public CompletableFuture<List<UiNotificationDo>> getOrWait(List<TopicDo> topics, String user) {
     return getOrWait(topics, user, CONFIG.getPropertyValue(UiNotificationWaitTimeoutProperty.class));
@@ -173,23 +182,44 @@ public class UiNotificationRegistry {
   public void put(IDoEntity message, String topic, String userId, long timeout) {
     Assertions.assertNotNull(message, "Message must not be null");
     Assertions.assertNotNull(topic, "Topic must not be null");
+
     UiNotificationDo notification = BEANS.get(UiNotificationDo.class)
         .withId(m_sequence.getAndIncrement())
         .withTopic(topic)
         .withMessage(message);
+
+    putInternal(notification, userId, timeout);
+    publishOverCluster(notification, userId, timeout);
+  }
+
+  protected void publishOverCluster(UiNotificationDo notification, String userId, long timeout) {
+    if (m_clusterService == null) {
+      return;
+    }
+    m_clusterService.publish(BEANS.get(UiNotificationClusterNotificationDo.class).withNotification(notification).withUser(userId).withTimeout(timeout));
+    LOG.info("Published ui notification with id {} for topic {} and user {} to other cluster nodes.", notification.getId(), notification.getTopic(), userId);
+  }
+
+  public void handleClusterNotification(UiNotificationClusterNotificationDo clusterNotification) {
+    LOG.info("Received ui notification with id {} from another cluster node for topic {} and user {}.", clusterNotification.getNotification().getId(), clusterNotification.getNotification().getTopic(), clusterNotification.getUser());
+
+    putInternal(clusterNotification.getNotification(), clusterNotification.getUser(), clusterNotification.getTimeout());
+  }
+
+  protected void putInternal(UiNotificationDo notification, String userId, long timeout) {
     UiNotificationElement element = new UiNotificationElement();
     element.setNotification(notification);
     element.setUser(userId);
     element.setValidUntil(new Date(System.currentTimeMillis() + timeout));
 
+    String topic = notification.getTopic();
     m_lock.writeLock().lock();
     try {
       List<UiNotificationElement> uiNotifications = getNotifications().computeIfAbsent(topic, key -> new ArrayList<>());
       uiNotifications.add(element);
       LOG.info("Added new ui notification {} for topic {}. New size: {}", notification, topic, uiNotifications.size());
-
-      // TODO CGU message needs to be published over cluster, crm and studio use different service -> use studio service only? make abstraction?
       // TODO CGU keep inside lock? It ensures no more notifications can be added during future completion, but it blocks longer. Maybe it would be sufficient to check if response is done in ui notification resource
+      // Example put, put -> second put completes future again and throws exception?
       triggerEvent(topic, notification);
     }
     finally {

@@ -10,7 +10,6 @@
 package org.eclipse.scout.rt.api.uinotification;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
@@ -25,8 +24,10 @@ import javax.ws.rs.core.MediaType;
 import org.eclipse.scout.rt.api.data.uinotification.TopicDo;
 import org.eclipse.scout.rt.api.data.uinotification.UiNotificationRequest;
 import org.eclipse.scout.rt.api.data.uinotification.UiNotificationResponse;
+import org.eclipse.scout.rt.api.uinotification.UiNotificationConfigProperties.UiNotificationWaitTimeoutProperty;
 import org.eclipse.scout.rt.dataobject.DoEntity;
 import org.eclipse.scout.rt.platform.BEANS;
+import org.eclipse.scout.rt.platform.config.CONFIG;
 import org.eclipse.scout.rt.rest.IRestResource;
 import org.eclipse.scout.rt.security.IAccessControlService;
 import org.slf4j.Logger;
@@ -57,7 +58,7 @@ public class UiNotificationResource implements IRestResource {
     ClientDisconnectedListener clientDisconnectedListener = new ClientDisconnectedListener();
     httpReq.getAsyncContext().addListener(clientDisconnectedListener);
 
-    getRegistry().getOrWait(topics, userId, request.isLongPolling() ? TimeUnit.SECONDS.toMillis(5): 0)
+    getRegistry().getOrWait(topics, userId, request.isLongPolling() ? CONFIG.getPropertyValue(UiNotificationWaitTimeoutProperty.class): 0)
         .thenApply((notifications) -> {
           if (asyncResponse.isSuspended() && !clientDisconnectedListener.isDisconnected()) {
             LOG.info("Resuming async response with {} notifications for topics {} and user {}", notifications.size(), topics, userId);

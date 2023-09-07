@@ -1,12 +1,16 @@
 package org.eclipse.scout.rt.api.data.uinotification;
 
+import java.io.Serializable;
+
 import javax.annotation.Generated;
 
 import org.eclipse.scout.rt.dataobject.DoEntity;
 import org.eclipse.scout.rt.dataobject.DoValue;
 import org.eclipse.scout.rt.dataobject.IDoEntity;
 
-public class UiNotificationDo extends DoEntity {
+public class UiNotificationDo extends DoEntity implements Serializable {
+  private static final long serialVersionUID = 640367835652828218L;
+
   public DoValue<Integer> id() {
     return doValue("id");
   }
