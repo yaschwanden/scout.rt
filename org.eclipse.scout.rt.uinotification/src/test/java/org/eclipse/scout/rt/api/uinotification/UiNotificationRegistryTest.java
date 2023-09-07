@@ -31,15 +31,13 @@ import org.junit.runner.RunWith;
 
 @RunWith(PlatformTestRunner.class)
 public class UiNotificationRegistryTest {
-  private static long WAIT_TIMEOUT = 60000;
   private UiNotificationRegistry m_registry;
 
   @Before
   public void before() {
     m_registry = new UiNotificationRegistry();
+    m_registry.setCleanupJobInterval(0);
   }
-
-  // TODO CGU disable cleanup job during tests
 
   @Test
   public void testGetAll() {
@@ -148,7 +146,7 @@ public class UiNotificationRegistryTest {
     IDoEntity message = createMessage();
 
     BooleanHolder completed = new BooleanHolder();
-    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null, WAIT_TIMEOUT);
+    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null);
     future.thenApply(notifications -> {
       assertEquals(Arrays.asList(createNotification(message, "topic", 1)), notifications);
       completed.setValue(true);
@@ -161,7 +159,7 @@ public class UiNotificationRegistryTest {
     m_registry.put(message, "topic");
     assertNull(m_registry.getListeners("topic"));
 
-    assertEquals(true, completed.getValue());;
+    assertEquals(true, completed.getValue());
   }
 
   @Test
@@ -171,7 +169,7 @@ public class UiNotificationRegistryTest {
     m_registry.put(message, "topic");
 
     BooleanHolder completed = new BooleanHolder();
-    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null, WAIT_TIMEOUT);
+    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null);
     future.thenApply(notifications -> {
       assertEquals(Arrays.asList(createNotification(message, "topic", 1)), notifications);
       completed.setValue(true);
@@ -183,13 +181,13 @@ public class UiNotificationRegistryTest {
     // Wait for future to complete
     future.get(1, TimeUnit.SECONDS);
 
-    assertEquals(true, completed.getValue());;
+    assertEquals(true, completed.getValue());
   }
 
   @Test
   public void testGetAllOrWaitInitial() throws ExecutionException, InterruptedException, TimeoutException {
     BooleanHolder completed = new BooleanHolder();
-    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", null)), null, WAIT_TIMEOUT);
+    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", null)), null);
     future.thenApply(notifications -> {
       // Returns only subscription start notification if lastNotificationId is null
       assertEquals(Arrays.asList(createSubscriptionStartNotification("topic", -1)), notifications);
@@ -202,7 +200,7 @@ public class UiNotificationRegistryTest {
     // Wait for future to complete
     future.get(1, TimeUnit.SECONDS);
 
-    assertEquals(true, completed.getValue());;
+    assertEquals(true, completed.getValue());
   }
 
   @Test
@@ -211,7 +209,7 @@ public class UiNotificationRegistryTest {
 
     // A listener for topic
     BooleanHolder completed = new BooleanHolder(false);
-    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null, WAIT_TIMEOUT);
+    CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null);
     future.thenApply(notifications -> {
       assertEquals(Arrays.asList(createNotification(message, "topic", 1)), notifications);
       completed.setValue(true);
@@ -221,7 +219,7 @@ public class UiNotificationRegistryTest {
 
     // Another listener for topic
     BooleanHolder completed2 = new BooleanHolder(false);
-    CompletableFuture<List<UiNotificationDo>> future2 = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null, WAIT_TIMEOUT);
+    CompletableFuture<List<UiNotificationDo>> future2 = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null);
     future2.thenApply(notifications -> {
       assertEquals(Arrays.asList(createNotification(message, "topic", 1)), notifications);
       completed2.setValue(true);
@@ -231,7 +229,7 @@ public class UiNotificationRegistryTest {
 
     // Listener for topic b
     BooleanHolder completed3 = new BooleanHolder(false);
-    CompletableFuture<List<UiNotificationDo>> future3 = m_registry.getOrWait(Arrays.asList(createTopic("topic b", -1)), null, WAIT_TIMEOUT);
+    CompletableFuture<List<UiNotificationDo>> future3 = m_registry.getOrWait(Arrays.asList(createTopic("topic b", -1)), null);
     future3.thenApply(notifications -> {
       assertEquals(Arrays.asList(createNotification(message, "topic b", 3)), notifications);
       completed3.setValue(true);
@@ -242,7 +240,7 @@ public class UiNotificationRegistryTest {
 
     // Another listener for topic b
     BooleanHolder completed4 = new BooleanHolder(false);
-    CompletableFuture<List<UiNotificationDo>> future4 = m_registry.getOrWait(Arrays.asList(createTopic("topic b", -1)), "otto", WAIT_TIMEOUT);
+    CompletableFuture<List<UiNotificationDo>> future4 = m_registry.getOrWait(Arrays.asList(createTopic("topic b", -1)), "otto");
     future4.thenApply(notifications -> {
       assertEquals(Arrays.asList(createNotification(message, "topic b", 2)), notifications);
       completed4.setValue(true);
@@ -255,19 +253,19 @@ public class UiNotificationRegistryTest {
     m_registry.put(message, "topic");
     assertNull(m_registry.getListeners("topic"));
     assertEquals(2, m_registry.getListeners("topic b").list().size());
-    assertEquals(true, completed.getValue());;
-    assertEquals(true, completed2.getValue());;
+    assertEquals(true, completed.getValue());
+    assertEquals(true, completed2.getValue());
 
     // Triggers only Otto's listener for topic b
     m_registry.put(message, "topic b", "otto");
     assertEquals(1, m_registry.getListeners("topic b").list().size());
-    assertEquals(false, completed3.getValue());;
-    assertEquals(true, completed4.getValue());;
+    assertEquals(false, completed3.getValue());
+    assertEquals(true, completed4.getValue());
 
     // Triggers other listener for topic b
     m_registry.put(message, "topic b");
     assertNull(m_registry.getListeners("topic b"));
-    assertEquals(true, completed3.getValue());;
+    assertEquals(true, completed3.getValue());
   }
 
 
@@ -293,7 +291,7 @@ public class UiNotificationRegistryTest {
     }
 
     assertNull(m_registry.getListeners("topic"));
-    assertEquals(true, completed.getValue());;
+    assertEquals(true, completed.getValue());
   }
 
   @Test

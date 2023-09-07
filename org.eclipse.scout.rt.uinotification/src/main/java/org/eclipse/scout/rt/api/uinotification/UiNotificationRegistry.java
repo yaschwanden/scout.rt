@@ -27,9 +27,13 @@ import java.util.stream.Stream;
 
 import org.eclipse.scout.rt.api.data.uinotification.TopicDo;
 import org.eclipse.scout.rt.api.data.uinotification.UiNotificationDo;
+import org.eclipse.scout.rt.api.uinotification.UiNotificationConfigProperties.RegistryCleanupJobIntervalProperty;
+import org.eclipse.scout.rt.api.uinotification.UiNotificationConfigProperties.UiNotificationExpirationTimeProperty;
+import org.eclipse.scout.rt.api.uinotification.UiNotificationConfigProperties.UiNotificationWaitTimeoutProperty;
 import org.eclipse.scout.rt.dataobject.IDoEntity;
 import org.eclipse.scout.rt.platform.ApplicationScoped;
 import org.eclipse.scout.rt.platform.BEANS;
+import org.eclipse.scout.rt.platform.config.CONFIG;
 import org.eclipse.scout.rt.platform.exception.ExceptionHandler;
 import org.eclipse.scout.rt.platform.holders.BooleanHolder;
 import org.eclipse.scout.rt.platform.job.FixedDelayScheduleBuilder;
@@ -47,8 +51,13 @@ public class UiNotificationRegistry {
   private Map<String, List<UiNotificationElement>> m_notifications = new HashMap<>();
   private Map<String, FastListenerList<UiNotificationListener>> m_listeners = new HashMap<>();
   private IFuture<Void> m_cleanupJob;
+  private long m_cleanupJobInterval = CONFIG.getPropertyValue(RegistryCleanupJobIntervalProperty.class);
 
   private static final Logger LOG = LoggerFactory.getLogger(UiNotificationRegistry.class);
+
+  public CompletableFuture<List<UiNotificationDo>> getOrWait(List<TopicDo> topics, String user) {
+    return getOrWait(topics, user, CONFIG.getPropertyValue(UiNotificationWaitTimeoutProperty.class));
+  }
 
   public CompletableFuture<List<UiNotificationDo>> getOrWait(List<TopicDo> topics, String user, long timeout) {
     List<UiNotificationDo> notifications = get(topics, user);
@@ -150,9 +159,17 @@ public class UiNotificationRegistry {
   }
 
   public void put(IDoEntity message, String topic, String userId) {
-    put(message, topic, userId, TimeUnit.SECONDS.toMillis(10));
+    put(message, topic, userId, CONFIG.getPropertyValue(UiNotificationExpirationTimeProperty.class));
   }
 
+  /**
+   * Puts a message into the registry for a specific topic and user.
+   *
+   * @param message The message part of the {@link UiNotificationDo}.
+   * @param topic A notification must be assigned to a topic.
+   * @param userId If specified, only the user with this id will get the notification.
+   * @param timeout Time in milliseconds before the notification expires and can be removed from the registry by the cleanup job.
+   */
   public void put(IDoEntity message, String topic, String userId, long timeout) {
     Assertions.assertNotNull(message, "Message must not be null");
     Assertions.assertNotNull(topic, "Topic must not be null");
@@ -260,7 +277,7 @@ public class UiNotificationRegistry {
   }
 
   public void startCleanupJob() {
-    if (m_cleanupJob != null) {
+    if (m_cleanupJob != null || getCleanupJobInterval() == 0) {
       // Already started
       return;
     }
@@ -289,6 +306,21 @@ public class UiNotificationRegistry {
         }, true)
         .withExecutionTrigger(Jobs
             .newExecutionTrigger()
-            .withSchedule(FixedDelayScheduleBuilder.repeatForever(10, TimeUnit.SECONDS))));
+            .withSchedule(FixedDelayScheduleBuilder.repeatForever(getCleanupJobInterval(), TimeUnit.SECONDS))));
+  }
+
+  /**
+   * Configures how often the cleanup job should run.
+   * <p>
+   * The property needs to be set before the cleanup job is scheduled, which is, before the first notification is put.
+   *
+   * @param cleanupJobInterval The interval in seconds between job runs. 0 to disable the job.
+   */
+  public void setCleanupJobInterval(long cleanupJobInterval) {
+    m_cleanupJobInterval = cleanupJobInterval;
+  }
+
+  public long getCleanupJobInterval() {
+    return m_cleanupJobInterval;
   }
 }
