@@ -9,17 +9,15 @@
  */
 package org.eclipse.scout.rt.server.uinotification;
 
-import java.io.Serializable;
-
 import org.eclipse.scout.rt.api.uinotification.IUiNotificationClusterService;
-import org.eclipse.scout.rt.api.uinotification.UiNotificationClusterNotificationDo;
+import org.eclipse.scout.rt.api.uinotification.UiNotificationMessageDo;
 import org.eclipse.scout.rt.platform.BEANS;
 import org.eclipse.scout.rt.server.services.common.clustersync.IClusterSynchronizationService;
 
 public class UiNotificationClusterService implements IUiNotificationClusterService {
 
   @Override
-  public void publish(UiNotificationClusterNotificationDo notification) {
+  public void publish(UiNotificationMessageDo notification) {
     // TODO CGU Why does this not work? do we need to convert to json first
     BEANS.get(IClusterSynchronizationService.class).publishTransactional(notification);
   }

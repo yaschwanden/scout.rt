@@ -39,7 +39,9 @@ import org.eclipse.scout.rt.platform.holders.BooleanHolder;
 import org.eclipse.scout.rt.platform.job.FixedDelayScheduleBuilder;
 import org.eclipse.scout.rt.platform.job.IFuture;
 import org.eclipse.scout.rt.platform.job.Jobs;
+import org.eclipse.scout.rt.platform.transaction.ITransaction;
 import org.eclipse.scout.rt.platform.util.Assertions;
+import org.eclipse.scout.rt.platform.util.ObjectUtility;
 import org.eclipse.scout.rt.platform.util.event.FastListenerList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +50,7 @@ import org.slf4j.LoggerFactory;
 public class UiNotificationRegistry {
   private AtomicInteger m_sequence = new AtomicInteger(1);
   private ReadWriteLock m_lock = new ReentrantReadWriteLock();
-  private Map<String, List<UiNotificationElement>> m_notifications = new HashMap<>();
+  private Map<String, List<UiNotificationRegistryElement>> m_notifications = new HashMap<>();
   private Map<String, FastListenerList<UiNotificationListener>> m_listeners = new HashMap<>();
   private IFuture<Void> m_cleanupJob;
   private long m_cleanupJobInterval = CONFIG.getPropertyValue(RegistryCleanupJobIntervalProperty.class);
@@ -115,14 +117,14 @@ public class UiNotificationRegistry {
     m_lock.readLock().lock();
     try {
       Stream<UiNotificationDo> notificationStream = getNotifications().getOrDefault(topic, new ArrayList<>()).stream()
-          .filter(notification -> {
+          .filter(elem -> {
             // If element contains a user it must match the given user
-            if (notification.getUser() != null) {
-              return notification.getUser().equals(user);
+            if (elem.getMessage().getUser() != null) {
+              return elem.getMessage().getUser().equals(user);
             }
             return true;
           })
-          .map(elem -> elem.getNotification());
+          .map(elem -> elem.getMessage().getNotification());
 
       if (lastNotificationId == null) {
         List<UiNotificationDo> notifications = notificationStream.collect(Collectors.toList());
@@ -164,11 +166,15 @@ public class UiNotificationRegistry {
   }
 
   public void put(IDoEntity message, String topic) {
-    put(message, topic, null);
+    put(message, topic, null, null);
+  }
+
+  public void put(IDoEntity message, String topic, UiNotificationPutOptions options) {
+    put(message, topic, null, options);
   }
 
   public void put(IDoEntity message, String topic, String userId) {
-    put(message, topic, userId, CONFIG.getPropertyValue(UiNotificationExpirationTimeProperty.class));
+    put(message, topic, userId, null);
   }
 
   /**
@@ -177,45 +183,74 @@ public class UiNotificationRegistry {
    * @param message The message part of the {@link UiNotificationDo}.
    * @param topic A notification must be assigned to a topic.
    * @param userId If specified, only the user with this id will get the notification.
-   * @param timeout Time in milliseconds before the notification expires and can be removed from the registry by the cleanup job.
    */
-  public void put(IDoEntity message, String topic, String userId, long timeout) {
+  public void put(IDoEntity message, String topic, String userId, UiNotificationPutOptions options) {
     Assertions.assertNotNull(message, "Message must not be null");
     Assertions.assertNotNull(topic, "Topic must not be null");
+    if (options == null) {
+      options = new UiNotificationPutOptions();
+    }
 
     UiNotificationDo notification = BEANS.get(UiNotificationDo.class)
         .withId(m_sequence.getAndIncrement())
         .withTopic(topic)
         .withMessage(message);
 
-    putInternal(notification, userId, timeout);
-    publishOverCluster(notification, userId, timeout);
+    UiNotificationMessageDo metaMessage = BEANS.get(UiNotificationMessageDo.class)
+        .withNotification(notification)
+        .withUser(userId)
+        .withTimeout(ObjectUtility.nvl(options.getTimeout(), CONFIG.getPropertyValue(UiNotificationExpirationTimeProperty.class)));
+
+    if (ObjectUtility.nvl(options.getTransactional(), true)) {
+      putTransactional(metaMessage);
+    } else {
+      putInternal(metaMessage);
+    }
   }
 
-  protected void publishOverCluster(UiNotificationDo notification, String userId, long timeout) {
+  protected void putTransactional(UiNotificationMessageDo message) {
+    ITransaction transaction = Assertions.assertNotNull(ITransaction.CURRENT.get(), "No transaction found on current calling context to register transactional ui notification {}", message);
+    try {
+      UiNotificationTransactionMember txMember = (UiNotificationTransactionMember) transaction.getMember(UiNotificationTransactionMember.TRANSACTION_MEMBER_ID);
+      if (txMember == null) {
+        txMember = new UiNotificationTransactionMember(this);
+        transaction.registerMember(txMember);
+      }
+      txMember.addNotification(message);
+    }
+    catch (RuntimeException e) {
+      LOG.warn("Could not register transaction member. The notification will be processed immediately", e);
+      putInternal(message);
+    }
+  }
+
+  protected void publishOverCluster(UiNotificationMessageDo message) {
     if (m_clusterService == null) {
       return;
     }
-    m_clusterService.publish(BEANS.get(UiNotificationClusterNotificationDo.class).withNotification(notification).withUser(userId).withTimeout(timeout));
-    LOG.info("Published ui notification with id {} for topic {} and user {} to other cluster nodes.", notification.getId(), notification.getTopic(), userId);
+    m_clusterService.publish(message);
+    LOG.info("Published ui notification with id {} for topic {} and user {} to other cluster nodes.", message.getNotification().getId(), message.getNotification().getTopic(), message.getUser());
   }
 
-  public void handleClusterNotification(UiNotificationClusterNotificationDo clusterNotification) {
-    LOG.info("Received ui notification with id {} from another cluster node for topic {} and user {}.", clusterNotification.getNotification().getId(), clusterNotification.getNotification().getTopic(), clusterNotification.getUser());
-
-    putInternal(clusterNotification.getNotification(), clusterNotification.getUser(), clusterNotification.getTimeout());
+  public void handleClusterNotification(UiNotificationMessageDo message) {
+    LOG.info("Received ui notification with id {} from another cluster node for topic {} and user {}.", message.getNotification().getId(), message.getNotification().getTopic(), message.getUser());
+    putInternal(message, false);
   }
 
-  protected void putInternal(UiNotificationDo notification, String userId, long timeout) {
-    UiNotificationElement element = new UiNotificationElement();
-    element.setNotification(notification);
-    element.setUser(userId);
-    element.setValidUntil(new Date(System.currentTimeMillis() + timeout));
+  protected void putInternal(UiNotificationMessageDo message) {
+    putInternal(message, true);
+  }
+
+  protected void putInternal(UiNotificationMessageDo message, boolean publishOverCluster) {
+    UiNotificationRegistryElement element = new UiNotificationRegistryElement();
+    UiNotificationDo notification = message.getNotification();
+    element.setMessage(message);
+    element.setValidUntil(new Date(System.currentTimeMillis() + message.getTimeout()));
 
     String topic = notification.getTopic();
     m_lock.writeLock().lock();
     try {
-      List<UiNotificationElement> uiNotifications = getNotifications().computeIfAbsent(topic, key -> new ArrayList<>());
+      List<UiNotificationRegistryElement> uiNotifications = getNotifications().computeIfAbsent(topic, key -> new ArrayList<>());
       uiNotifications.add(element);
       LOG.info("Added new ui notification {} for topic {}. New size: {}", notification, topic, uiNotifications.size());
       // TODO CGU keep inside lock? It ensures no more notifications can be added during future completion, but it blocks longer. Maybe it would be sufficient to check if response is done in ui notification resource
@@ -226,6 +261,9 @@ public class UiNotificationRegistry {
       m_lock.writeLock().unlock();
     }
     startCleanupJob();
+    if (publishOverCluster) {
+      publishOverCluster(message);
+    }
   }
 
   public void addListener(String topic, UiNotificationListener listener) {
@@ -270,14 +308,14 @@ public class UiNotificationRegistry {
     return m_listeners.get(topic);
   }
 
-  protected final Map<String, List<UiNotificationElement>> getNotifications() {
+  protected final Map<String, List<UiNotificationRegistryElement>> getNotifications() {
     return m_notifications;
   }
 
   /**
    * Removes all expires ui notifications.
    *
-   * @see UiNotificationElement#getValidUntil()
+   * @see UiNotificationRegistryElement#getValidUntil()
    */
   public void cleanup() {
     m_lock.writeLock().lock();
@@ -288,8 +326,8 @@ public class UiNotificationRegistry {
       LOG.debug("Cleaning up expired ui notifications. Topic count: {}.", getNotifications().size());
 
       long now = new Date().getTime();
-      for (Entry<String, List<UiNotificationElement>> entry : getNotifications().entrySet()) {
-        List<UiNotificationElement> notifications = entry.getValue();
+      for (Entry<String, List<UiNotificationRegistryElement>> entry : getNotifications().entrySet()) {
+        List<UiNotificationRegistryElement> notifications = entry.getValue();
         int oldSize = notifications.size();
         if (notifications.removeIf(elem -> elem.getValidUntil().getTime() < now)) {
           int newSize = notifications.size();

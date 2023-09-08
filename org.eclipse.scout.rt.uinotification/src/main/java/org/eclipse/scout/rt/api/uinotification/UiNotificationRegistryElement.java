@@ -11,27 +11,18 @@ package org.eclipse.scout.rt.api.uinotification;
 
 import java.util.Date;
 
-import org.eclipse.scout.rt.api.data.uinotification.UiNotificationDo;
+import org.eclipse.scout.rt.platform.util.ToStringBuilder;
 
-public class UiNotificationElement {
-  private String m_user;
-  private UiNotificationDo m_notification;
+public class UiNotificationRegistryElement {
+  private UiNotificationMessageDo m_message;
   private Date m_validUntil;
 
-  public String getUser() {
-    return m_user;
+  public UiNotificationMessageDo getMessage() {
+    return m_message;
   }
 
-  public void setUser(String user) {
-    m_user = user;
-  }
-
-  public UiNotificationDo getNotification() {
-    return m_notification;
-  }
-
-  public void setNotification(UiNotificationDo notification) {
-    m_notification = notification;
+  public void setMessage(UiNotificationMessageDo message) {
+    m_message = message;
   }
 
   public Date getValidUntil() {
@@ -44,6 +35,9 @@ public class UiNotificationElement {
 
   @Override
   public String toString() {
-    return "UiNotificationElement { notification: " + m_notification + ", user: " + m_user + " }";
+    ToStringBuilder builder = new ToStringBuilder(this);
+    builder.attr("message", m_message);
+    builder.attr("validUntil", m_validUntil);
+    return builder.toString();
   }
 }

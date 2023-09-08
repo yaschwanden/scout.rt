@@ -9,14 +9,14 @@
  */
 package org.eclipse.scout.rt.server.uinotification;
 
-import org.eclipse.scout.rt.api.uinotification.UiNotificationClusterNotificationDo;
+import org.eclipse.scout.rt.api.uinotification.UiNotificationMessageDo;
 import org.eclipse.scout.rt.api.uinotification.UiNotificationRegistry;
 import org.eclipse.scout.rt.platform.BEANS;
 import org.eclipse.scout.rt.shared.notification.INotificationHandler;
 
-public class UiNotificationClusterHandler implements INotificationHandler<UiNotificationClusterNotificationDo> {
+public class UiNotificationClusterHandler implements INotificationHandler<UiNotificationMessageDo> {
   @Override
-  public void handleNotification(UiNotificationClusterNotificationDo clusterNotification) {
+  public void handleNotification(UiNotificationMessageDo clusterNotification) {
     BEANS.get(UiNotificationRegistry.class).handleClusterNotification(clusterNotification);
   }
 }

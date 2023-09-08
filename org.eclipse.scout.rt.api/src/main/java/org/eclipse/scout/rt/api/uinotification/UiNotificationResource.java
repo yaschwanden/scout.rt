@@ -80,6 +80,6 @@ public class UiNotificationResource implements IRestResource {
   public void putSample() {
     DoEntity doEntity = new DoEntity();
     doEntity.put("sample", "data " + System.currentTimeMillis());
-    getRegistry().put(doEntity, "sample", null);
+    getRegistry().put(doEntity, "sample");
   }
 }

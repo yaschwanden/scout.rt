@@ -13,5 +13,5 @@ import org.eclipse.scout.rt.platform.ApplicationScoped;
 
 @ApplicationScoped
 public interface IUiNotificationClusterService {
-  void publish(UiNotificationClusterNotificationDo notification);
+  void publish(UiNotificationMessageDo notification);
 }

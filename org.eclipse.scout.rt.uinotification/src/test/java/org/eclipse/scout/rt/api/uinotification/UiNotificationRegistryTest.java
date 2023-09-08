@@ -9,6 +9,7 @@
  */
 package org.eclipse.scout.rt.api.uinotification;
 
+import static org.eclipse.scout.rt.api.uinotification.UiNotificationPutOptions.noTransaction;
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import org.eclipse.scout.rt.api.data.uinotification.UiNotificationDo;
 import org.eclipse.scout.rt.dataobject.DoEntity;
 import org.eclipse.scout.rt.dataobject.IDoEntity;
 import org.eclipse.scout.rt.platform.holders.BooleanHolder;
+import org.eclipse.scout.rt.platform.transaction.ITransaction;
 import org.eclipse.scout.rt.testing.platform.runner.PlatformTestRunner;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,7 +44,7 @@ public class UiNotificationRegistryTest {
   @Test
   public void testGetAll() {
     IDoEntity message = createMessage();
-    m_registry.put(message, "topic");
+    m_registry.put(message, "topic", noTransaction());
 
     // Returns all added notifications
     assertEquals(Arrays.asList(createNotification(message, "topic", 1)), m_registry.get(Arrays.asList(createTopic("topic", -1)), null));
@@ -54,7 +56,7 @@ public class UiNotificationRegistryTest {
   @Test
   public void testGetAllWrongTopic() {
     IDoEntity message = createMessage();
-    m_registry.put(message, "topic");
+    m_registry.put(message, "topic", noTransaction());
 
     assertEquals(new ArrayList<>(), m_registry.get(Arrays.asList(createTopic("asdf", -1)), null));
   }
@@ -62,7 +64,7 @@ public class UiNotificationRegistryTest {
   @Test
   public void testGetAllInitial() {
     IDoEntity message = createMessage();
-    m_registry.put(message, "topic");
+    m_registry.put(message, "topic", noTransaction());
 
     // Returns only subscription start notification if lastNotificationId is null
     assertEquals(Arrays.asList(createSubscriptionStartNotification("topic", 1)), m_registry.get(Arrays.asList(createTopic("topic", null)), null));
@@ -74,16 +76,16 @@ public class UiNotificationRegistryTest {
   @Test
   public void testGetAllWithLastId() {
     IDoEntity message = createMessage();
-    m_registry.put(message, "topic");
+    m_registry.put(message, "topic", noTransaction());
 
     // All notifications are already read (lastNotificationId is 1)
     assertEquals(new ArrayList<>(), m_registry.get(Arrays.asList(createTopic("topic", 1)), null));
 
     IDoEntity newMessage = createMessage("a");
-    m_registry.put(newMessage, "topic");
+    m_registry.put(newMessage, "topic", noTransaction());
 
     IDoEntity newMessage2 = createMessage("b");
-    m_registry.put(newMessage2, "topic");
+    m_registry.put(newMessage2, "topic", noTransaction());
     assertEquals(Arrays.asList(createNotification(newMessage, "topic", 2), createNotification(newMessage2, "topic", 3)), m_registry.get(Arrays.asList(createTopic("topic", 1)), null));
 
     // All notifications are already read (lastNotificationId is 3)
@@ -93,17 +95,17 @@ public class UiNotificationRegistryTest {
   @Test
   public void testGetAllMultipleTopicsWithLastId() {
     IDoEntity message = createMessage();
-    m_registry.put(message, "topic a"); // 1
+    m_registry.put(message, "topic a", noTransaction()); // 1
 
     // First call has lastNotificationId set to null -> subscribe
     List<UiNotificationDo> subscriptions = m_registry.get(Arrays.asList(createTopic("topic a", null), createTopic("topic b", null)), null);
     assertEquals(Arrays.asList(createSubscriptionStartNotification("topic a", 1), createSubscriptionStartNotification("topic b", -1)), subscriptions);
 
     IDoEntity newMessage = createMessage("a");
-    m_registry.put(newMessage, "topic a"); // 2
+    m_registry.put(newMessage, "topic a", noTransaction()); // 2
 
     IDoEntity newMessage2 = createMessage("b");
-    m_registry.put(newMessage2, "topic b"); // 3
+    m_registry.put(newMessage2, "topic b", noTransaction()); // 3
 
     // topic a: lastId is 1 (id of last notification for that topic) because there was already one notification which must not be sent
     // topic b: lastId is -1 because there was no notification -> all notifications for that topic will be returned
@@ -116,25 +118,25 @@ public class UiNotificationRegistryTest {
   @Test
   public void testGetAllWithLastIdAndUser() {
     IDoEntity message = createMessage();
-    m_registry.put(message, "topic a", "otto"); // 1
+    m_registry.put(message, "topic a", "otto", noTransaction()); // 1
 
     IDoEntity message2 = createMessage();
-    m_registry.put(message2, "topic a", "max"); // 2
+    m_registry.put(message2, "topic a", "max", noTransaction()); // 2
 
     IDoEntity message3 = createMessage();
-    m_registry.put(message3, "topic a", null); // 3
+    m_registry.put(message3, "topic a", null, noTransaction()); // 3
 
     List<UiNotificationDo> subscriptions = m_registry.get(Arrays.asList(createTopic("topic a", null)), "otto");
     assertEquals(Arrays.asList(createSubscriptionStartNotification("topic a", 3)), subscriptions);
 
     IDoEntity newMessage = createMessage("a new");
-    m_registry.put(newMessage, "topic a"); // 4
+    m_registry.put(newMessage, "topic a", noTransaction()); // 4
 
     IDoEntity newMessage2 = createMessage("a new user");
-    m_registry.put(newMessage2, "topic a", "otto"); // 5
+    m_registry.put(newMessage2, "topic a", "otto", noTransaction()); // 5
 
     IDoEntity newMessage3 = createMessage("a new user max");
-    m_registry.put(newMessage3, "topic a", "max"); // 6
+    m_registry.put(newMessage3, "topic a", "max", noTransaction()); // 6
 
     Integer topicALastId = subscriptions.get(0).getId();
     List<UiNotificationDo> expected = Arrays.asList(createNotification(newMessage, "topic a", 4), createNotification(newMessage2, "topic a", 5));
@@ -156,7 +158,7 @@ public class UiNotificationRegistryTest {
     // Waiting for notifications
     assertEquals(1, m_registry.getListeners("topic").list().size());
 
-    m_registry.put(message, "topic");
+    m_registry.put(message, "topic", noTransaction());
     assertNull(m_registry.getListeners("topic"));
 
     assertEquals(true, completed.getValue());
@@ -166,7 +168,7 @@ public class UiNotificationRegistryTest {
   public void testGetAllOrWaitPutBeforeWait() throws ExecutionException, InterruptedException, TimeoutException {
     // Put before listening -> getAllOrWait should return it immediately
     IDoEntity message = createMessage();
-    m_registry.put(message, "topic");
+    m_registry.put(message, "topic", noTransaction());
 
     BooleanHolder completed = new BooleanHolder();
     CompletableFuture<List<UiNotificationDo>> future = m_registry.getOrWait(Arrays.asList(createTopic("topic", -1)), null);
@@ -250,20 +252,20 @@ public class UiNotificationRegistryTest {
     assertEquals(2, m_registry.getListeners("topic b").list().size());
 
     // Triggers both listeners for topic
-    m_registry.put(message, "topic");
+    m_registry.put(message, "topic", noTransaction());
     assertNull(m_registry.getListeners("topic"));
     assertEquals(2, m_registry.getListeners("topic b").list().size());
     assertEquals(true, completed.getValue());
     assertEquals(true, completed2.getValue());
 
     // Triggers only Otto's listener for topic b
-    m_registry.put(message, "topic b", "otto");
+    m_registry.put(message, "topic b", "otto", noTransaction());
     assertEquals(1, m_registry.getListeners("topic b").list().size());
     assertEquals(false, completed3.getValue());
     assertEquals(true, completed4.getValue());
 
     // Triggers other listener for topic b
-    m_registry.put(message, "topic b");
+    m_registry.put(message, "topic b", noTransaction());
     assertNull(m_registry.getListeners("topic b"));
     assertEquals(true, completed3.getValue());
   }
@@ -298,8 +300,8 @@ public class UiNotificationRegistryTest {
   public void testCleanup() throws InterruptedException {
     assertTrue(m_registry.getNotifications().isEmpty());
 
-    m_registry.put(createMessage(), "topic", null, TimeUnit.MILLISECONDS.toMillis(500));
-    m_registry.put(createMessage(), "topic", null, TimeUnit.MILLISECONDS.toMillis(50));
+    m_registry.put(createMessage(), "topic", null, new UiNotificationPutOptions().withTimeout(TimeUnit.MILLISECONDS.toMillis(500)).withTransactional(false));
+    m_registry.put(createMessage(), "topic", null, new UiNotificationPutOptions().withTimeout(TimeUnit.MILLISECONDS.toMillis(50)).withTransactional(false));
     assertEquals(2, m_registry.getNotifications().get("topic").size());
 
     Thread.sleep(51);
@@ -309,6 +311,52 @@ public class UiNotificationRegistryTest {
     Thread.sleep(450);
     m_registry.cleanup();
     assertTrue(m_registry.getNotifications().isEmpty());
+  }
+
+  @Test
+  public void testTransactional() {
+    IDoEntity message = createMessage();
+    m_registry.put(message, "topic");
+
+    // Empty because transaction has not been committed yet
+    assertEquals(new ArrayList<>(), m_registry.get(Arrays.asList(createTopic("topic", -1)), null));
+
+    ITransaction.CURRENT.get().commitPhase1();
+    ITransaction.CURRENT.get().commitPhase2();
+
+    assertEquals(Arrays.asList(createNotification(message, "topic", 1)), m_registry.get(Arrays.asList(createTopic("topic", -1)), null));
+
+    // Somehow transaction is not closed when a new test runs -> remove member manually to not influence other tests
+    ITransaction.CURRENT.get().unregisterMember(UiNotificationTransactionMember.TRANSACTION_MEMBER_ID);
+  }
+
+  @Test
+  public void testTransactionalRollback() {
+    IDoEntity message = createMessage();
+    m_registry.put(message, "topic");
+
+    // Empty because transaction has not been committed yet
+    assertEquals(new ArrayList<>(), m_registry.get(Arrays.asList(createTopic("topic", -1)), null));
+
+    ITransaction.CURRENT.get().rollback();
+    ITransaction.CURRENT.get().commitPhase1();
+    ITransaction.CURRENT.get().commitPhase2();
+
+    // Still empty because of rollback
+    assertEquals(new ArrayList<>(), m_registry.get(Arrays.asList(createTopic("topic", -1)), null));
+
+    // Create a new message and this time commit the transaction
+    IDoEntity message2 = createMessage("another");
+    m_registry.put(message2, "topic");
+
+    ITransaction.CURRENT.get().commitPhase1();
+    ITransaction.CURRENT.get().commitPhase2();
+
+    // Only message2 is in the registry
+    assertEquals(Arrays.asList(createNotification(message2, "topic", 2)), m_registry.get(Arrays.asList(createTopic("topic", -1)), null));
+
+    // Somehow transaction is not closed when a new test runs -> remove member manually to not influence other tests
+    ITransaction.CURRENT.get().unregisterMember(UiNotificationTransactionMember.TRANSACTION_MEMBER_ID);
   }
 
   protected IDoEntity createMessage(String value) {

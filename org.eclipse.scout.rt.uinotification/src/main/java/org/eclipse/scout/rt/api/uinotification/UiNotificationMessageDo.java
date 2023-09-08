@@ -17,7 +17,7 @@ import org.eclipse.scout.rt.api.data.uinotification.UiNotificationDo;
 import org.eclipse.scout.rt.dataobject.DoEntity;
 import org.eclipse.scout.rt.dataobject.DoValue;
 
-public class UiNotificationClusterNotificationDo extends DoEntity implements Serializable {
+public class UiNotificationMessageDo extends DoEntity implements Serializable {
   private static final long serialVersionUID = 2839805301562056951L;
 
   public DoValue<String> user() {
@@ -37,7 +37,7 @@ public class UiNotificationClusterNotificationDo extends DoEntity implements Ser
    * *************************************************************************/
 
   @Generated("DoConvenienceMethodsGenerator")
-  public UiNotificationClusterNotificationDo withUser(String user) {
+  public UiNotificationMessageDo withUser(String user) {
     user().set(user);
     return this;
   }
@@ -48,7 +48,7 @@ public class UiNotificationClusterNotificationDo extends DoEntity implements Ser
   }
 
   @Generated("DoConvenienceMethodsGenerator")
-  public UiNotificationClusterNotificationDo withNotification(UiNotificationDo notification) {
+  public UiNotificationMessageDo withNotification(UiNotificationDo notification) {
     notification().set(notification);
     return this;
   }
@@ -59,7 +59,7 @@ public class UiNotificationClusterNotificationDo extends DoEntity implements Ser
   }
 
   @Generated("DoConvenienceMethodsGenerator")
-  public UiNotificationClusterNotificationDo withTimeout(Long timeout) {
+  public UiNotificationMessageDo withTimeout(Long timeout) {
     timeout().set(timeout);
     return this;
   }
